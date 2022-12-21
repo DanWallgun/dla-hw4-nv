@@ -26,10 +26,11 @@ class WavMelDataset(Dataset):
             else:
                 start = random.randint(0, wav.size(1) - train_config.segment_size)
                 wav = wav[:, start:start + train_config.segment_size]
-        return wav, self.pad_melspec(wav)
-    def pad_melspec(self, wav):
-        pad_length = (melspec_config.n_fft - melspec_config.hop_length) // 2
-        padded_wav = F.pad(wav, (pad_length, pad_length), mode='reflect')
-        # print(padded_wav.size())
-        return self.melspec(padded_wav)
-    
+        return wav, pad_melspec_transform(self.melspec, wav)
+
+
+def pad_melspec_transform(melspec_transform, wav):
+    pad_length = (melspec_config.n_fft - melspec_config.hop_length) // 2
+    padded_wav = F.pad(wav, (pad_length, pad_length), mode='reflect')
+    # print(padded_wav.size())
+    return melspec_transform(padded_wav)

@@ -82,15 +82,6 @@ class Generator(nn.Module):
         x = torch.tanh(x)
         return x.squeeze(dim=1)
 
-    def remove_weight_norm(self):
-        print('Removing weight norm...')
-        for layer in self.upscales:
-            nn.utils.remove_weight_norm(layer)
-        for layer in self.resblocks:
-            layer.remove_weight_norm()
-        nn.utils.remove_weight_norm(self.pre_conv)
-        nn.utils.remove_weight_norm(self.post_conv)
-
 
 class OnePeriodDiscriminator(nn.Module):
     def __init__(self, period, kernel_size=5, stride=3):
@@ -130,23 +121,23 @@ class MultiPeriodDiscriminator(nn.Module):
     def __init__(self):
         super().__init__()
         self.discriminators = nn.ModuleList([
-            OnePeriodDiscriminator(period) for period in model_config.discriminator_periods
+            OnePeriodDiscriminator(period)
+            for period in model_config.discriminator_periods
         ])
 
-    def forward(self, y, y_hat):
-        y_d_rs = []
-        y_d_gs = []
-        fmap_rs = []
-        fmap_gs = []
-        for i, d in enumerate(self.discriminators):
-            y_d_r, fmap_r = d(y)
-            y_d_g, fmap_g = d(y_hat)
-            y_d_rs.append(y_d_r)
-            fmap_rs.append(fmap_r)
-            y_d_gs.append(y_d_g)
-            fmap_gs.append(fmap_g)
-
-        return y_d_rs, y_d_gs, fmap_rs, fmap_gs
+    def forward(self, real, fake):
+        real_results = []
+        fake_results = []
+        fmap_reals = []
+        fmap_fakes = []
+        for d in self.discriminators:
+            real_result, fmap_real = d(real)
+            fake_result, fmap_fake = d(fake)
+            real_results.append(real_result)
+            fake_results.append(fake_result)
+            fmap_reals.append(fmap_real)
+            fmap_fakes.append(fmap_fake)
+        return real_results, fake_results, fmap_reals, fmap_fakes
 
 
 class OneScaleDiscriminator(nn.Module):
@@ -172,7 +163,6 @@ class OneScaleDiscriminator(nn.Module):
         x = self.post_conv(x)
         fmap.append(x)
         x = torch.flatten(x, 1, -1)
-
         return x, fmap
 
 
@@ -189,54 +179,52 @@ class MultiScaleDiscriminator(torch.nn.Module):
             nn.AvgPool1d(4, 2, padding=2)
         ])
 
-    def forward(self, y, y_hat):
-        y_d_rs = []
-        y_d_gs = []
-        fmap_rs = []
-        fmap_gs = []
+    def forward(self, real, fake):
+        real_results = []
+        fake_results = []
+        fmap_reals = []
+        fmap_fakes = []
         for i, d in enumerate(self.discriminators):
             if i != 0:
-                y = self.poolings[i - 1](y)
-                y_hat = self.poolings[i - 1](y_hat)
-            y_d_r, fmap_r = d(y)
-            y_d_g, fmap_g = d(y_hat)
-            y_d_rs.append(y_d_r)
-            fmap_rs.append(fmap_r)
-            y_d_gs.append(y_d_g)
-            fmap_gs.append(fmap_g)
+                real = self.poolings[i - 1](real)
+                fake = self.poolings[i - 1](fake)
+            real_result, fmap_real = d(real)
+            fake_result, fmap_fake = d(fake)
+            real_results.append(real_result)
+            fmap_reals.append(fmap_real)
+            fake_results.append(fake_result)
+            fmap_fakes.append(fmap_fake)
 
-        return y_d_rs, y_d_gs, fmap_rs, fmap_gs
+        return real_results, fake_results, fmap_reals, fmap_fakes
 
 
-def feature_loss(fmap_r, fmap_g):
+def feature_loss(fmap_reals, fmap_fakes):
     loss = 0
-    for dr, dg in zip(fmap_r, fmap_g):
-        for rl, gl in zip(dr, dg):
-            loss += torch.mean(torch.abs(rl - gl))
-
+    for f_real, f_fake in zip(fmap_reals, fmap_fakes):
+        for r, f in zip(f_real, f_fake):
+            loss += F.l1_loss(r, f, reduction='mean')
     return loss * 2 
 
 
-def discriminator_loss(disc_real_outputs, disc_generated_outputs):
+def discriminator_loss(disc_real_outputs, disc_fake_outputs):
     loss = 0
     r_losses = []
-    g_losses = []
-    for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
-        r_loss = torch.mean((1 - dr) ** 2)
-        g_loss = torch.mean(dg ** 2)
-        loss += (r_loss + g_loss)
+    f_losses = []
+    for disc_real, disc_fake in zip(disc_real_outputs, disc_fake_outputs):
+        r_loss = F.mse_loss(disc_real, torch.ones_like(disc_real))
+        f_loss = F.mse_loss(disc_fake, torch.zeros_like(disc_fake))
+        loss += (r_loss + f_loss)
         r_losses.append(r_loss.item())
-        g_losses.append(g_loss.item())
+        f_losses.append(f_loss.item())
 
-    return loss, r_losses, g_losses
+    return loss, r_losses, f_losses
 
 
 def generator_loss(disc_outputs):
     loss = 0
-    gen_losses = []
-    for dg in disc_outputs:
-        l = torch.mean((1 - dg) ** 2)
-        gen_losses.append(l)
-        loss += l
-
-    return loss, gen_losses
+    fake_losses = []
+    for d in disc_outputs:
+        lss = F.mse_loss(d, torch.ones_like(d))
+        fake_losses.append(lss)
+        loss += lss
+    return loss, fake_losses

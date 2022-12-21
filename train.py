@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from wandb_writer import WanDBWriter
-from dataset import WavMelDataset
+from dataset import WavMelDataset, pad_melspec_transform
 from models import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator, feature_loss, generator_loss, discriminator_loss
 from configs import model_config, train_config
 from mels import melspec_config
@@ -108,7 +108,7 @@ def main():
             wav, mel = batch  # already on device
 
             fake_wav = generator(mel)
-            fake_mel = train_ds.pad_melspec(fake_wav)
+            fake_mel = pad_melspec_transform(train_ds.melspec, fake_wav)
 
             # print(wav.size(), mel.size())
             # print(fake_wav.size(), fake_mel.size())
@@ -167,7 +167,7 @@ def main():
                         # который мы не убираем в силу отсутствия collator-а
                         
                         fake_wav = generator(mel)
-                        fake_mel = test_ds.pad_melspec(fake_wav)
+                        fake_mel = pad_melspec_transform(test_ds.melspec, fake_wav)
 
                         logger.add_audio(f'generated/{j}', fake_wav, melspec_config.sr)
 
