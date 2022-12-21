@@ -23,6 +23,14 @@ def set_random_seed(seed):
 set_random_seed(42)
 
 
+def pad_difference(x, y, value=0):
+    if x.size(-1) > y.size(-1):
+        y = F.pad(y, (0, x.size(-1) - y.size(-1)), value=value)
+    elif x.size(-1) < y.size(-1):
+        x = F.pad(x, (0, y.size(-1) - x.size(-1)), value=value)
+    return x, y
+
+
 def main():
     device = train_config.device
 
@@ -36,24 +44,34 @@ def main():
         train_config.learning_rate, betas=train_config.betas
     )
 
+    if os.path.exists(train_config.full_frequent_checkpoint_name):
+        full_ckpt = torch.load(train_config.full_frequent_checkpoint_name)
+        generator.load_state_dict(full_ckpt['generator'].state_dict())
+        mpdiscriminator.load_state_dict(full_ckpt['mpdiscriminator'].state_dict())
+        msdiscriminator.load_state_dict(full_ckpt['msdiscriminator'].state_dict())
+        goptimizer.load_state_dict(full_ckpt['goptimizer'].state_dict())
+        doptimizer.load_state_dict(full_ckpt['doptimizer'].state_dict())
+
     last_epoch = -1
 
     gscheduler = torch.optim.lr_scheduler.ExponentialLR(goptimizer, gamma=train_config.lr_decay, last_epoch=last_epoch)
     dscheduler = torch.optim.lr_scheduler.ExponentialLR(doptimizer, gamma=train_config.lr_decay, last_epoch=last_epoch)
 
-    train_ds = WavMelDataset()
+    remove_channel_collator = lambda items: (torch.cat([item[0] for item in items], dim=0), torch.cat([item[1] for item in items], dim=0))
+
+    train_ds = WavMelDataset(train_config.wav_path)
     train_loader = DataLoader(
         train_ds,
         shuffle=True,
-        # collate_fn=lambda items: torch.cat([item[0] for item in items], dim=0), torch.cat([item[1] for item in items], dim=0)
+        collate_fn=remove_channel_collator,
         batch_size=train_config.batch_size,
-        pin_memory=True,
+        # pin_memory=True,
         num_workers=train_config.num_workers,
         drop_last=True
     )
 
-    test_ds = WavMelDataset(train_config.test_wav_path)
-    test_loader = DataLoader(test_ds, batch_size=3)
+    test_ds = WavMelDataset(train_config.test_wav_path, crop_segment=False)
+    test_loader = DataLoader(test_ds, batch_size=3, collate_fn=remove_channel_collator)
 
     current_step = 0
     logger = WanDBWriter(train_config)
@@ -77,6 +95,15 @@ def main():
             fake_wav = generator(mel)
             fake_mel = train_ds.pad_melspec(fake_wav)
 
+            # print(wav.size(), mel.size())
+            # print(fake_wav.size(), fake_mel.size())
+
+            wav, fake_wav = pad_difference(wav, fake_wav)
+            mel, fake_mel = pad_difference(mel, fake_mel, value=melspec_config.pad_value)
+
+            # print(wav.size(), mel.size())
+            # print(fake_wav.size(), fake_mel.size())
+
             doptimizer.zero_grad()
             # period
             y_df_hat_r, y_df_hat_g, _, _ = mpdiscriminator(wav, fake_wav.detach())
@@ -88,6 +115,10 @@ def main():
             loss_disc_all.backward()
             doptimizer.step()
 
+            logger.add_scalar('loss_disc_period', loss_disc_f)
+            logger.add_scalar('loss_disc_scale', loss_disc_s)
+            logger.add_scalar('loss_disc_all', loss_disc_all)
+            
             # Generator
             goptimizer.zero_grad()
             # L1 Mel-Spectrogram Loss
@@ -101,24 +132,47 @@ def main():
             loss_gen_all = loss_gen_s + loss_gen_f + loss_fm_s + loss_fm_f + loss_mel
             loss_gen_all.backward()
             goptimizer.step()
+            
+            logger.add_scalar('discloss_gen_scale', loss_gen_s)
+            logger.add_scalar('discloss_gen_period', loss_gen_f)
+            logger.add_scalar('featureloss_gen_scale', loss_fm_s)
+            logger.add_scalar('featureloss_gen_period', loss_fm_f)
+            logger.add_scalar('l1loss_gen_mel', loss_mel)
 
             # log something
             if current_step % train_config.log_step == 0 and current_step != 0:
+                logger.set_step(current_step, 'test')
                 generator.eval()
                 torch.cuda.empty_cache()
                 with torch.no_grad():
                     wav, mel = next(iter(test_loader))
+                    # print('test', wav.size(), mel.size())
                     
                     fake_wav = generator(mel)
-                    fake_mel = train_ds.pad_melspec(fake_wav)
+                    fake_mel = test_ds.pad_melspec(fake_wav)
+
+                    for j in range(3):
+                        logger.add_audio(f'generated/{j}', fake_wav[j], melspec_config.sr)
+
+                    wav, fake_wav = pad_difference(wav, fake_wav)
+                    mel, fake_mel = pad_difference(mel, fake_mel, value=melspec_config.pad_value)
 
                     val_err_tot = F.l1_loss(mel, fake_mel).item()
 
-                    for j in range(3):
-                        logger.add_audio(f'generated/{j}', fake_wav[j].cpu().numpy(), melspec_config.sample_rate)
-
-                    logger.add_scalar("validation/mel_spec_error", val_err_tot)
+                    logger.add_scalar("mel_spec_error", val_err_tot)
                 generator.train()
+            
+            if current_step % train_config.frequent_save_current_model == 0 and current_step != 0:
+                torch.save(
+                    {
+                        'generator': generator,
+                        'mpdiscriminator': mpdiscriminator,
+                        'msdiscriminator': msdiscriminator,
+                        'goptimizer': goptimizer,
+                        'doptimizer': doptimizer,
+                    },
+                    train_config.full_frequent_checkpoint_name
+                )
         
         gscheduler.step()
         dscheduler.step()

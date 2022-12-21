@@ -57,7 +57,7 @@ class Generator(nn.Module):
         self.upscales.apply(init_weights)
 
         self.resblocks = nn.ModuleList()
-        for i in range(len(self.ups)):
+        for i in range(len(self.upscales)):
             ch = model_config.upsample_initial_channel // (2 ** (i + 1))
             for k, d in zip(model_config.resblock_kernel_sizes, model_config.resblock_dilation_sizes):
                 self.resblocks.append(ResBlock(ch, k, d))
@@ -73,18 +73,18 @@ class Generator(nn.Module):
             xs = None
             for j in range(len(model_config.resblock_kernel_sizes)):
                 if xs is None:
-                    xs = self.resblocks[i * self.num_kernels + j](x)
+                    xs = self.resblocks[i * len(model_config.resblock_kernel_sizes) + j](x)
                 else:
-                    xs += self.resblocks[i * self.num_kernels + j](x)
+                    xs += self.resblocks[i * len(model_config.resblock_kernel_sizes) + j](x)
             x = xs / len(model_config.resblock_kernel_sizes)
         x = F.leaky_relu(x)
         x = self.post_conv(x)
         x = torch.tanh(x)
-        return x
+        return x.squeeze(dim=1)
 
     def remove_weight_norm(self):
         print('Removing weight norm...')
-        for layer in self.ups:
+        for layer in self.upscales:
             nn.utils.remove_weight_norm(layer)
         for layer in self.resblocks:
             layer.remove_weight_norm()
@@ -109,12 +109,12 @@ class OnePeriodDiscriminator(nn.Module):
         fmap = []
 
         # перекладываем по выбранному периоду сэмплы построчно в 2д тензор
-        b, c, t = x.shape
+        b, t = x.shape
         if t % self.period != 0:
             n_pad = self.period - (t % self.period)
             x = F.pad(x, (0, n_pad), 'reflect')
             t = t + n_pad
-        x = x.view(b, c, t // self.period, self.period)
+        x = x.view(b, 1, t // self.period, self.period)
 
         for layer in self.convs:
             x = F.leaky_relu(layer(x), model_config.leaky_relu_slope)
@@ -130,7 +130,7 @@ class MultiPeriodDiscriminator(nn.Module):
     def __init__(self):
         super().__init__()
         self.discriminators = nn.ModuleList([
-            OnePeriodDiscriminator(period) for period in model_config.descriminitor_periods
+            OnePeriodDiscriminator(period) for period in model_config.discriminator_periods
         ])
 
     def forward(self, y, y_hat):
@@ -164,12 +164,12 @@ class OneScaleDiscriminator(nn.Module):
         self.post_conv = weight_norm(nn.Conv1d(1024, 1, 3, 1, padding=1))
 
     def forward(self, x):
+        x = x.unsqueeze(dim=1)
         fmap = []
-        for l in self.convs:
-            x = l(x)
-            x = F.leaky_relu(x, model_config.leaky_relu_slope)
+        for layer in self.convs:
+            x = F.leaky_relu(layer(x), model_config.leaky_relu_slope)
             fmap.append(x)
-        x = self.conv_post(x)
+        x = self.post_conv(x)
         fmap.append(x)
         x = torch.flatten(x, 1, -1)
 
