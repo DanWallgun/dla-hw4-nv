@@ -1,5 +1,6 @@
 #!/bin/bash
 
-# gdown https://drive.google.com/u/0/uc?id=15CP7RHsW4fLYt7FeV3WuFSVk2-lrEbvc
-# mkdir ckpts
-# mv ./full_frequent_checkpoint.dict ./ckpts/full_frequent_checkpoint.dict
+# https://drive.google.com/file/d/104n-5M8QdchjKGF-07evNm-B11P9D6kt/view?usp=sharing
+gdown https://drive.google.com/u/0/uc?id=104n-5M8QdchjKGF-07evNm-B11P9D6kt
+mkdir ckpts
+mv ./full_frequent_checkpoint.dict ./ckpts/full_frequent_checkpoint.dict

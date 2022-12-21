@@ -2,7 +2,7 @@
 
 Чтобы учить, указываем параметры в configs.py и запускаем python train.py
 
-## Запуск
+## Inference
 ```
 ./scripts/download_trained.sh
 python infer.py --wav ./data/test_wavs/audio_1.wav --ckpt ./ckpts/full_frequent_checkpoint.dict
