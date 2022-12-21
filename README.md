@@ -4,6 +4,8 @@
 
 ## Inference
 ```
+# python=3.9 is recommended, for example conda create -n dla-test python=3.9
+pip install -r requirements.txt
 ./scripts/download_trained.sh
 python infer.py --wav ./data/test_wavs/audio_1.wav --ckpt ./ckpts/full_frequent_checkpoint.dict
 ```
