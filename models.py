@@ -10,7 +10,7 @@ from configs import model_config
 
 
 class ResBlock(nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
+    def __init__(self, channels, kernel_size, dilation):
         super().__init__()
 
         def get_conv(channels, kernel_size, dilation):

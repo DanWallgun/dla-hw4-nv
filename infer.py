@@ -4,10 +4,9 @@ import torch
 import torchaudio
 from torch.nn import functional as F
 
-from dataset import pad_melspec_transform
 from models import Generator
 from configs import train_config
-from mels import MelSpectrogram, melspec_config
+from mels import MelSpectrogram, MelSpectrogramConfig
 
 
 def main():
@@ -17,8 +16,8 @@ def main():
     args = parser.parse_args()
 
     wav = torchaudio.load(args.wav)[0].to(train_config.device)
-    melspec_transform = MelSpectrogram(melspec_config).to(train_config.device)
-    mel = pad_melspec_transform(melspec_transform, wav)
+    melspec_transform = MelSpectrogram(MelSpectrogramConfig()).to(train_config.device)
+    mel = melspec_transform(wav)
 
     generator = Generator().to(train_config.device)
     full_ckpt = torch.load(args.ckpt)
@@ -27,7 +26,7 @@ def main():
     fake_wav = generator(mel)
     torchaudio.save(
         args.wav + '-vocoder.wav',
-        fake_wav.cpu(), melspec_config.sr
+        fake_wav.cpu(), MelSpectrogramConfig.sr
     )
 
 

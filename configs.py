@@ -22,36 +22,24 @@ class HifiGANConfig:
 class TrainConfig:
     wav_path = './data/LJSpeech-1.1/wavs'
     test_wav_path = './data/test_wavs'
-    segment_size = 8192
     full_frequent_checkpoint_name = './ckpts/full_frequent_checkpoint.dict'
-
-    checkpoint_path = "./ckpts"
-    logger_path = "./logger"
-    mel_ground_truth = "./mels"
-    alignment_path = "./alignments"
-    data_path = './data/train.txt'
-    energy_path = "./energy"
-    pitch_path = "./pitch"
-    
     wandb_project = 'hifi-gan'
-    device = torch.device('cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
-    
-    num_workers = 0
-    batch_size = 16
-    last_epoch = 1  # нумерация с нуля
-    epochs = 4
-    n_warm_up_step = 1
 
-    learning_rate = 0.0002
+    device = torch.device('cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
+    num_workers = 32
+    batch_size = 16 * 6
+
+    segment_size = 8192
+
+    learning_rate = 0.0002 * 6
     betas = (0.8, 0.99)
     lr_decay = 0.999
 
-    log_step = 50
-    frequent_save_current_model = 100
-    save_step = 3000
-    clear_Time = 20
+    last_epoch = 3  # нумерация с нуля
+    epochs = 5
 
-    batch_expand_size = 32
+    log_step = 5
+    frequent_save_current_model = 5
     
 
 # singletons
