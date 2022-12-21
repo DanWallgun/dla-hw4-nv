@@ -15,7 +15,7 @@ class WavMelDataset(Dataset):
         self.wav_path = wav_path
         self.crop_segment = crop_segment
         self.melspec = MelSpectrogram(melspec_config).to(train_config.device)
-        self.filenames = os.listdir(self.wav_path)
+        self.filenames = sorted(os.listdir(self.wav_path))
     def __len__(self):
         return len(self.filenames)
     def __getitem__(self, index):

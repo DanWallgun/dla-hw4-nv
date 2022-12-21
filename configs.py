@@ -38,7 +38,8 @@ class TrainConfig:
     
     num_workers = 0
     batch_size = 16
-    epochs = 2
+    last_epoch = 1  # нумерация с нуля
+    epochs = 4
     n_warm_up_step = 1
 
     learning_rate = 0.0002

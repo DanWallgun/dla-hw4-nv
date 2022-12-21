@@ -38,15 +38,29 @@ def set_requires_grad(model, value):
 
 def main():
     device = train_config.device
+    last_epoch = train_config.last_epoch
 
     generator = Generator().to(device)
     mpdiscriminator = MultiPeriodDiscriminator().to(device)
     msdiscriminator = MultiScaleDiscriminator().to(device)
 
-    goptimizer = torch.optim.AdamW(generator.parameters(), train_config.learning_rate, betas=train_config.betas)
+    goptimizer = torch.optim.AdamW(
+        [
+            {
+                'params': generator.parameters(),
+                'initial_lr': train_config.learning_rate * train_config.lr_decay ** (last_epoch + 1)
+            }
+        ],
+        train_config.learning_rate, betas=train_config.betas,
+    )
     doptimizer = torch.optim.AdamW(
-        itertools.chain(msdiscriminator.parameters(), mpdiscriminator.parameters()),
-        train_config.learning_rate, betas=train_config.betas
+        [
+            {
+                'params': itertools.chain(msdiscriminator.parameters(), mpdiscriminator.parameters()),
+                'initial_lr': train_config.learning_rate * train_config.lr_decay ** (last_epoch + 1)
+            }
+        ],
+        train_config.learning_rate, betas=train_config.betas,
     )
 
     if os.path.exists(train_config.full_frequent_checkpoint_name):
@@ -56,8 +70,6 @@ def main():
         msdiscriminator.load_state_dict(full_ckpt['msdiscriminator'].state_dict())
         goptimizer.load_state_dict(full_ckpt['goptimizer'].state_dict())
         doptimizer.load_state_dict(full_ckpt['doptimizer'].state_dict())
-
-    last_epoch = -1
 
     gscheduler = torch.optim.lr_scheduler.ExponentialLR(goptimizer, gamma=train_config.lr_decay, last_epoch=last_epoch)
     dscheduler = torch.optim.lr_scheduler.ExponentialLR(doptimizer, gamma=train_config.lr_decay, last_epoch=last_epoch)
@@ -77,16 +89,15 @@ def main():
 
     test_ds = WavMelDataset(train_config.test_wav_path, crop_segment=False)
 
-    current_step = 0
+    current_step = (last_epoch + 1) * len(train_loader)
     logger = WanDBWriter(train_config)
-    tqdm_bar = tqdm(total=train_config.epochs * len(train_loader))
+    tqdm_bar = tqdm(total=(train_config.epochs - last_epoch - 1) * len(train_loader))
 
     generator.train()
     mpdiscriminator.train()
     msdiscriminator.train()
 
-
-    for epoch in range(train_config.epochs):
+    for epoch in range(last_epoch + 1, train_config.epochs):
         for idx, batch in enumerate(train_loader):
             current_step += 1
             tqdm_bar.update(1)
