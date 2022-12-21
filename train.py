@@ -31,6 +31,11 @@ def pad_difference(x, y, value=0):
     return x, y
 
 
+def set_requires_grad(model, value):
+    for p in model.parameters():
+        p.requires_grad = value
+
+
 def main():
     device = train_config.device
 
@@ -71,7 +76,6 @@ def main():
     )
 
     test_ds = WavMelDataset(train_config.test_wav_path, crop_segment=False)
-    test_loader = DataLoader(test_ds, batch_size=3, collate_fn=remove_channel_collator)
 
     current_step = 0
     logger = WanDBWriter(train_config)
@@ -145,19 +149,19 @@ def main():
                 generator.eval()
                 torch.cuda.empty_cache()
                 with torch.no_grad():
-                    wav, mel = next(iter(test_loader))
-                    # print('test', wav.size(), mel.size())
-                    
-                    fake_wav = generator(mel)
-                    fake_mel = test_ds.pad_melspec(fake_wav)
+                    val_err_tot = 0.0
+                    for j, (wav, mel) in enumerate(test_ds):
+                        # не делаем unsqueeze для получения "батча",
+                        # так как уже есть одиночный канал,
+                        # который мы не убираем в силу отсутствия collator-а
+                        
+                        fake_wav = generator(mel)
+                        fake_mel = test_ds.pad_melspec(fake_wav)
 
-                    for j in range(3):
-                        logger.add_audio(f'generated/{j}', fake_wav[j], melspec_config.sr)
+                        logger.add_audio(f'generated/{j}', fake_wav, melspec_config.sr)
 
-                    wav, fake_wav = pad_difference(wav, fake_wav)
-                    mel, fake_mel = pad_difference(mel, fake_mel, value=melspec_config.pad_value)
-
-                    val_err_tot = F.l1_loss(mel, fake_mel).item()
+                        mel, fake_mel = pad_difference(mel, fake_mel, value=melspec_config.pad_value)
+                        val_err_tot += F.l1_loss(mel, fake_mel).item()
 
                     logger.add_scalar("mel_spec_error", val_err_tot)
                 generator.train()

@@ -23,7 +23,7 @@ class TrainConfig:
     wav_path = './data/LJSpeech-1.1/wavs'
     test_wav_path = './data/test_wavs'
     segment_size = 8192
-    full_frequent_checkpoint_name = 'full_frequent_checkpoint.dict'
+    full_frequent_checkpoint_name = './ckpts/full_frequent_checkpoint.dict'
 
     checkpoint_path = "./ckpts"
     logger_path = "./logger"
