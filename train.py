@@ -65,11 +65,11 @@ def main():
 
     if os.path.exists(train_config.full_frequent_checkpoint_name):
         full_ckpt = torch.load(train_config.full_frequent_checkpoint_name)
-        generator.load_state_dict(full_ckpt['generator'].state_dict())
-        mpdiscriminator.load_state_dict(full_ckpt['mpdiscriminator'].state_dict())
-        msdiscriminator.load_state_dict(full_ckpt['msdiscriminator'].state_dict())
-        goptimizer.load_state_dict(full_ckpt['goptimizer'].state_dict())
-        doptimizer.load_state_dict(full_ckpt['doptimizer'].state_dict())
+        generator.load_state_dict(full_ckpt['generator'])
+        mpdiscriminator.load_state_dict(full_ckpt['mpdiscriminator'])
+        msdiscriminator.load_state_dict(full_ckpt['msdiscriminator'])
+        goptimizer.load_state_dict(full_ckpt['goptimizer'])
+        doptimizer.load_state_dict(full_ckpt['doptimizer'])
 
     gscheduler = torch.optim.lr_scheduler.ExponentialLR(goptimizer, gamma=train_config.lr_decay, last_epoch=last_epoch)
     dscheduler = torch.optim.lr_scheduler.ExponentialLR(doptimizer, gamma=train_config.lr_decay, last_epoch=last_epoch)

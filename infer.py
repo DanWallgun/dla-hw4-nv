@@ -22,7 +22,7 @@ def main():
 
     generator = Generator().to(train_config.device)
     full_ckpt = torch.load(args.ckpt)
-    generator.load_state_dict(full_ckpt['generator'].state_dict())
+    generator.load_state_dict(full_ckpt['generator'])
     
     fake_wav = generator(mel)
     torchaudio.save(
