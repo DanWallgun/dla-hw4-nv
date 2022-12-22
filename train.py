@@ -8,7 +8,8 @@ from tqdm.auto import tqdm
 
 from wandb_writer import WanDBWriter
 from dataset import WavMelDataset
-from models import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator, feature_loss, generator_loss, discriminator_loss
+from models import Generator, MultiPeriodDiscriminator, MultiScaleDiscriminator
+from losses import generator_loss, discriminator_loss, feature_loss
 from configs import train_config
 from mels import MelSpectrogramConfig, MelSpectrogram
 
@@ -47,15 +48,32 @@ def main():
             }
         ],
         train_config.learning_rate, betas=train_config.betas,
-    )
+    )        
 
-    if os.path.exists(train_config.full_frequent_checkpoint_name):
-        full_ckpt = torch.load(train_config.full_frequent_checkpoint_name)
+    def load_checkpoint(path):
+        full_ckpt = torch.load(path)
         generator.load_state_dict(full_ckpt['generator'])
         mpdiscriminator.load_state_dict(full_ckpt['mpdiscriminator'])
         msdiscriminator.load_state_dict(full_ckpt['msdiscriminator'])
         goptimizer.load_state_dict(full_ckpt['goptimizer'])
         doptimizer.load_state_dict(full_ckpt['doptimizer'])
+
+    def save_checkpoint(path):
+        torch.save(
+            {
+                'generator': generator.state_dict(),
+                'mpdiscriminator': mpdiscriminator.state_dict(),
+                'msdiscriminator': msdiscriminator.state_dict(),
+                'goptimizer': goptimizer.state_dict(),
+                'doptimizer': doptimizer.state_dict(),
+            },
+            path,
+        )
+ 
+    if os.path.exists(train_config.full_checkpoint_name):
+        load_checkpoint(train_config.full_checkpoint_name)
+    elif os.path.exists(train_config.full_frequent_checkpoint_name):
+        load_checkpoint(train_config.full_frequent_checkpoint_name)
 
     gscheduler = torch.optim.lr_scheduler.ExponentialLR(
         goptimizer,
@@ -104,10 +122,10 @@ def main():
             doptimizer.zero_grad()
             # period
             real_results, fake_results, _, _ = mpdiscriminator(wav, fake_wav.detach())
-            loss_disc_p, _, _ = discriminator_loss(real_results, fake_results)
+            loss_disc_p = discriminator_loss(real_results, fake_results)
             # scale
             real_results, fake_results, _, _ = msdiscriminator(wav, fake_wav.detach())
-            loss_disc_s, _, _ = discriminator_loss(real_results, fake_results)
+            loss_disc_s = discriminator_loss(real_results, fake_results)
             loss_disc_all = loss_disc_s + loss_disc_p
             loss_disc_all.backward()
             doptimizer.step()
@@ -120,12 +138,12 @@ def main():
             goptimizer.zero_grad()
             # period
             _, fake_results, fmap_reals, fmap_fakes = mpdiscriminator(wav, fake_wav)
-            loss_fm_p = feature_loss(fmap_reals, fmap_fakes)
-            loss_gen_p, _ = generator_loss(fake_results)
+            loss_fm_p = feature_loss(fmap_reals, fmap_fakes) * 2
+            loss_gen_p = generator_loss(fake_results)
             # scale
             _, fake_results, fmap_reals, fmap_fakes = msdiscriminator(wav, fake_wav)
-            loss_fm_s = feature_loss(fmap_reals, fmap_fakes)
-            loss_gen_s, _ = generator_loss(fake_results)
+            loss_fm_s = feature_loss(fmap_reals, fmap_fakes) * 2
+            loss_gen_s = generator_loss(fake_results)
             # reconstruction
             loss_mel = F.l1_loss(mel, fake_mel) * 45
             loss_gen_all = loss_gen_s + loss_gen_p + loss_fm_s + loss_fm_p + loss_mel
@@ -147,6 +165,7 @@ def main():
                     test_error_total = 0.0
                     for j, wav in enumerate(test_ds):
                         wav = wav.unsqueeze(0).to(device)
+                        mel = melspec_transform(wav)
                         
                         fake_wav = generator(mel)
                         fake_mel = melspec_transform(fake_wav)
@@ -159,17 +178,11 @@ def main():
                 generator.train()
             
             if current_step % train_config.frequent_save_current_model == 0 and current_step != 0:
-                torch.save(
-                    {
-                        'generator': generator.state_dict(),
-                        'mpdiscriminator': mpdiscriminator.state_dict(),
-                        'msdiscriminator': msdiscriminator.state_dict(),
-                        'goptimizer': goptimizer.state_dict(),
-                        'doptimizer': doptimizer.state_dict(),
-                    },
-                    train_config.full_frequent_checkpoint_name
-                )
+                save_checkpoint(train_config.full_frequent_checkpoint_name)
         
+        # end of epoch 
+        save_checkpoint(train_config.full_checkpoint_name)
+
         gscheduler.step()
         dscheduler.step()
 

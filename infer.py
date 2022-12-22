@@ -12,14 +12,14 @@ from mels import MelSpectrogram, MelSpectrogramConfig
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wav', required=True)
-    parser.add_argument('--ckpt', required=False, default=train_config.full_frequent_checkpoint_name)
+    parser.add_argument('--ckpt', required=False, default='infer_checkpoint.dict')
     args = parser.parse_args()
 
     wav = torchaudio.load(args.wav)[0].to(train_config.device)
     melspec_transform = MelSpectrogram(MelSpectrogramConfig()).to(train_config.device)
     mel = melspec_transform(wav)
 
-    generator = Generator().to(train_config.device)
+    generator = Generator().to(train_config.device).eval()
     full_ckpt = torch.load(args.ckpt)
     generator.load_state_dict(full_ckpt['generator'])
     

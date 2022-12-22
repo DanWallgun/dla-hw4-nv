@@ -23,6 +23,7 @@ class TrainConfig:
     wav_path = './data/LJSpeech-1.1/wavs'
     test_wav_path = './data/test_wavs'
     full_frequent_checkpoint_name = './ckpts/full_frequent_checkpoint.dict'
+    full_checkpoint_name = './ckpts/full_checkpoint.dict'
     wandb_project = 'hifi-gan'
 
     device = torch.device('cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
@@ -35,11 +36,11 @@ class TrainConfig:
     betas = (0.8, 0.99)
     lr_decay = 0.999
 
-    last_epoch = 3  # нумерация с нуля
-    epochs = 5
+    last_epoch = -1  # нумерация с нуля
+    epochs = 30
 
-    log_step = 5
-    frequent_save_current_model = 5
+    log_step = 10
+    frequent_save_current_model = 10
     
 
 # singletons
