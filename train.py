@@ -57,6 +57,7 @@ def main():
         msdiscriminator.load_state_dict(full_ckpt['msdiscriminator'])
         goptimizer.load_state_dict(full_ckpt['goptimizer'])
         doptimizer.load_state_dict(full_ckpt['doptimizer'])
+        print(f'loaded {path}')
 
     def save_checkpoint(path):
         torch.save(

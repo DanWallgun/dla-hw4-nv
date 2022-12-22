@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import torch
 import torchaudio
@@ -25,7 +26,7 @@ def main():
     
     fake_wav = generator(mel)
     torchaudio.save(
-        args.wav + '-vocoder.wav',
+        'vocoder-' + os.path.basename(args.wav),
         fake_wav.cpu(), MelSpectrogramConfig.sr
     )
 
