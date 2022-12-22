@@ -16,6 +16,12 @@ python infer.py --wav ./data/test_wavs/audio_2.wav --ckpt ./infer_checkpoint.dic
 python infer.py --wav ./data/test_wavs/audio_3.wav --ckpt ./infer_checkpoint.dict
 ```
 
+## Results
+В папке [data/test_results](https://github.com/DanWallgun/dla-hw4-nv/blob/main/data/test_results/) или в конце wandb отчёта  
+[audio_1](https://github.com/DanWallgun/dla-hw4-nv/raw/main/data/test_results/vocoder-audio_1.wav)
+[audio_2](https://github.com/DanWallgun/dla-hw4-nv/raw/main/data/test_results/vocoder-audio_2.wav)
+[audio_3](https://github.com/DanWallgun/dla-hw4-nv/raw/main/data/test_results/vocoder-audio_2.wav)
+
 ## Report 
 [WandB](https://wandb.ai/danwallgun/hifi-gan/reports/DLA-HW4-NV-Report--VmlldzozMTk3MTI5)
 
